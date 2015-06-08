@@ -28,13 +28,13 @@ import org.junit.Test;
 import org.sonar.api.config.Settings;
 import org.sonar.api.utils.DateUtils;
 import org.sonar.api.utils.System2;
-import org.sonar.batch.protocol.Constants;
 import org.sonar.batch.protocol.output.BatchReport;
 import org.sonar.core.metric.db.MetricDto;
 import org.sonar.core.persistence.DbTester;
 import org.sonar.server.computation.batch.BatchReportReaderRule;
 import org.sonar.server.computation.batch.TreeRootHolderRule;
 import org.sonar.server.computation.component.Component;
+import org.sonar.server.computation.component.DbIdsRepository;
 import org.sonar.server.computation.component.DumbComponent;
 import org.sonar.server.computation.language.LanguageRepository;
 import org.sonar.server.computation.measure.MetricCache;
@@ -57,6 +57,8 @@ public class PersistNumberOfDaysSinceLastCommitStepTest extends BaseStepTest {
   @Rule
   public BatchReportReaderRule reportReader = new BatchReportReaderRule();
 
+  DbIdsRepository dbIdsRepository = new DbIdsRepository();
+
   PersistNumberOfDaysSinceLastCommitStep sut;
 
   DbClient dbClient;
@@ -75,7 +77,7 @@ public class PersistNumberOfDaysSinceLastCommitStepTest extends BaseStepTest {
     languageRepository = mock(LanguageRepository.class);
     when(metricCache.get(anyString())).thenReturn(new MetricDto().setId(10));
 
-    sut = new PersistNumberOfDaysSinceLastCommitStep(System2.INSTANCE, dbClient, sourceLineIndex, metricCache, treeRootHolder, reportReader);
+    sut = new PersistNumberOfDaysSinceLastCommitStep(System2.INSTANCE, dbClient, sourceLineIndex, metricCache, treeRootHolder, reportReader, dbIdsRepository);
   }
 
   @Override
@@ -86,7 +88,7 @@ public class PersistNumberOfDaysSinceLastCommitStepTest extends BaseStepTest {
   @Test
   public void persist_number_of_days_since_last_commit_from_report() {
     long threeDaysAgo = DateUtils.addDays(new Date(), -3).getTime();
-    initReportWithProjectAndFile();
+    initProject();
     reportReader.putChangesets(
       BatchReport.Changesets.newBuilder()
         .setComponentRef(2)
@@ -106,7 +108,7 @@ public class PersistNumberOfDaysSinceLastCommitStepTest extends BaseStepTest {
   public void persist_number_of_days_since_last_commit_from_index() {
     Date sixDaysAgo = DateUtils.addDays(new Date(), -6);
     when(sourceLineIndex.lastCommitDateOnProject("project-uuid")).thenReturn(sixDaysAgo);
-    initReportWithProjectAndFile();
+    initProject();
 
     sut.execute();
 
@@ -115,29 +117,17 @@ public class PersistNumberOfDaysSinceLastCommitStepTest extends BaseStepTest {
 
   @Test
   public void no_scm_information_in_report_and_index() {
-    initReportWithProjectAndFile();
+    initProject();
 
     sut.execute();
 
     db.assertDbUnit(getClass(), "empty.xml");
   }
 
-  private void initReportWithProjectAndFile() {
-    treeRootHolder.setRoot(new DumbComponent(Component.Type.PROJECT, 1, "project-uuid", null,
-      new DumbComponent(Component.Type.FILE, 2, "file-uuid", null)));
-
-    reportReader.setMetadata(BatchReport.Metadata.newBuilder()
-      .setSnapshotId(1000)
-      .build());
-
-    reportReader.putComponent(BatchReport.Component.newBuilder()
-      .setRef(1)
-      .setType(Constants.ComponentType.PROJECT)
-      .addChildRef(2)
-      .build());
-    reportReader.putComponent(BatchReport.Component.newBuilder()
-      .setRef(2)
-      .setType(Constants.ComponentType.FILE)
-      .build());
+  private void initProject() {
+    Component project = new DumbComponent(Component.Type.PROJECT, 1, "project-uuid", null,
+      new DumbComponent(Component.Type.FILE, 2, "file-uuid", null));
+    treeRootHolder.setRoot(project);
+    dbIdsRepository.setSnapshotId(project, 1000);
   }
 }
