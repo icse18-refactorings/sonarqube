@@ -43,6 +43,7 @@ public class DbVersion71 implements DbVersion {
       .add(2013, "Create WEBHOOKS Table", CreateWebhooksTable.class)
       .add(2014, "Migrate webhooks from SETTINGS table to WEBHOOKS table", MigrateWebhooksToWebhooksTable.class)
       .add(2015, "Add webhook key to WEBHOOK_DELIVERIES table", AddWebhookKeyToWebhookDeliveriesTable.class)
+      .add(2016, "Clean broken project to QG references", CleanBrokenProjectToQGReferences.class)
     ;
   }
 }
